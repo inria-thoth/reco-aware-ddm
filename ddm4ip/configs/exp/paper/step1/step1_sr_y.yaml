@@ -1,0 +1,60 @@
+# @package _global_
+
+defaults:
+ - /models@models.flow: xxxs_flow_32
+ - /dataset@dataset.train: div2krk
+ - /dataset@dataset.test: div2krk
+ - override /training: default
+ - override /loss: flow_matching
+ - override /generation: flow
+ - override /dataset/degradation@dataset.train.degradation: gaussian_downsampling
+ - override /dataset/noise@dataset.train.noise: gaussian
+ - override /dataset/degradation@dataset.test.degradation: gaussian_downsampling
+ - override /dataset/noise@dataset.test.noise: gaussian
+
+dataset:
+  device: cuda
+  train:
+    degradation:
+      padding: valid
+    noise:
+      std: 0.01
+    patch_size: 64
+    num_patches_per_image: 512
+    patch_cache_size: 512
+    space_conditioning: False
+
+    noisy_path: ${paths.data}/div2krk/lr_x2/
+    clean_path: ${paths.data}/div2krk/lr_x2/
+  test:
+    degradation:
+      padding: valid
+    noise:
+      std: 0.01
+    patch_size: 64
+    num_patches_per_image: 512
+    patch_cache_size: 512
+    space_conditioning: False
+    path: ${paths.data}/div2krk/lr_x2/
+
+optim:
+  lr: 0.01
+
+loss:
+  clean_images: False
+  n_accum_steps: 1
+
+ema:
+  stds: [0.001]
+
+training:
+  tensorboard: true
+  batch_size: 64
+  max_val_batches: 1
+  num_workers: 0
+  max_steps: ${parse_nimg:"257Ki"}
+  save_every_steps: ${parse_nimg:"128Ki"}
+  plot_every_steps: ${parse_nimg:"16Ki"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+
+exp_name: sr_exp1

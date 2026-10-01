@@ -1,0 +1,8 @@
+defaults:
+ - degradation: gaussian_blur
+ - noise: gaussian
+
+name: zip
+space_conditioning: True
+
+path: ${paths.data}/dd_dp_dataset_png/test_c/target/

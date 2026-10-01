@@ -1,0 +1,56 @@
+# @package _global_
+
+defaults:
+ - /dataset@dataset.test: div2krk
+ - override /dataset/degradation@dataset.test.degradation: file_downsampling
+ - override /dataset/noise@dataset.test.noise: gaussian
+ - override /training: validation
+ - override /loss: deepinv
+
+dataset:
+  device: cuda
+  test:
+    name: zip
+    cuda: False
+    space_conditioning: False
+    x_flip: False
+    path: ${paths.data}/div2krk/gt/img_1_gt.png
+    noisy_path: ${paths.data}/div2krk/lr_x2/im_1.png
+    train_path: null
+    test_path: null
+    degradation:
+      kind: file_downsampling
+      kernel_path: ${paths.data}/div2krk/gt_k_x2/kernel_1.mat
+      kernel_size: 15
+      padding: replicate
+    noise:
+      std: 0
+
+loss:
+  crop_filters: 1
+  patch_size: 230
+  padding: 26
+  patch_batch_size: 8
+
+  eval_crop_border: 2
+
+models:
+  deepinv_solver:
+    method: dpir
+    prior: DRUNet
+    large_model: True
+  kernel:
+    fixed_kernel_path: ${paths.out_path}/step2_sr_y_img1/kernel_collapsed.mat
+    sr_factor: 2
+    padding: circular
+
+training:
+  tensorboard: true
+  batch_size: 1
+  report_every_steps: 1
+  plot_every_steps: 1
+  num_workers: 0
+  max_val_batches: 1
+  save_eval_to_file: True
+
+exp_name: step3_sr_y_img1

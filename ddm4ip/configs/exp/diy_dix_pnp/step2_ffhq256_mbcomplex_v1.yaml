@@ -1,0 +1,103 @@
+# @package _global_
+
+defaults:
+ - /models@models.pretrained_flow_x: xxxs_flow_256
+ - /models@models.pretrained_flow_y: xxxs_flow_256
+ - /models@models.kernel: direct_kernel
+ - /dataset@dataset.train: ffhq_train
+ - /dataset@dataset.test: ffhq_test
+ - /loss@loss.aux_x: flow_matching
+ - /loss@loss.aux_y: flow_matching
+ - override /training: default
+ - override /generation: flow
+ - override /dataset/degradation@dataset.train.degradation: motion_blur_complex
+ - override /dataset/noise@dataset.train.noise: gaussian
+ - override /dataset/degradation@dataset.test.degradation: motion_blur_complex
+ - override /dataset/noise@dataset.test.noise: gaussian
+
+models:
+  pretrained_flow_x:
+    path: ${paths.out_path}/step1_ffhq256_clean_patch/checkpoints/training-state-8388608.pt
+  pretrained_flow_y:
+    path: ${paths.out_path}/step1_ffhq256_mbcomplex_patch/checkpoints/training-state-8388608.pt
+  kernel:
+    factor: 1
+    kernel_size: 33
+    noise_type: gaussian
+    padding: circular
+    type: direct
+    initialization: random
+    kernel_norm: softplus_sum_to_one
+
+dataset:
+  device: cuda
+  train:
+    clean_path: ${paths.data}/ffhq/ffhq_256_tr_1k_clean.zip
+    noisy_path: ${paths.data}/ffhq/ffhq_256_tr_1k_noisy.zip
+    noise:
+        kind: gaussian
+        std: 0.02
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 2048
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+  test:
+    path: ${paths.data}/ffhq/ffhq_256_val_clean.zip
+    noise:
+        kind: gaussian
+        std: 0.02
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 2048
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+
+optim:
+  aux_x:
+    lr: 0.0001
+  aux_y:
+    lr: 0.0001
+  kernel:
+    lr: 0.003
+
+loss:
+  aux_x:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  aux_y:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  name: di_x_y
+  n_accum_steps: 1
+  n_inner_steps: 1
+  lambda_dix: 1.0
+  lambda_dix_warmup_steps: ${parse_nimg:"1Mi"}
+  restorer:
+    type: dpir
+    sigma: 0.02
+    grad_iters: 3
+
+training:
+  tensorboard: true
+  batch_size: 32
+  num_workers: 2
+  max_val_batches: 1
+  max_steps: ${parse_nimg:"15Mi"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+  plot_every_steps: ${parse_nimg:"32Ki"}
+  save_every_steps: ${parse_nimg:"1Mi"}
+  save_first_step: false
+  seed: 41
+
+exp_name: diy_dix_pnp_step2_ffhq256_mbcomplex_v1

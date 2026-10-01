@@ -1,0 +1,7 @@
+kind: rgb_aniso_gaussian_blur
+kernel_size: 33
+kernel_std_x: [2.5, 2.0, 2.5]
+kernel_std_y: [1.5, 1.5, 1.5]
+kernel_angle: [0.0, 0.0, 0.0]
+kernel_shift: [[2.0, 0.0], [0.0, 0.0], [-2.0, 0.0]]
+padding: replicate

@@ -1,0 +1,79 @@
+# @package _global_
+
+defaults:
+ - /models@models.pretrained_flow: xxxs_flow_32
+ - /models@models.kernel: direct_kernel
+ - /loss@loss.aux: flow_matching
+ - /dataset@dataset.train: div2krk
+ - /dataset@dataset.test: div2krk
+ - override /training: default
+ - override /generation: flow
+ - override /dataset/degradation@dataset.train.degradation: gaussian_downsampling
+ - override /dataset/noise@dataset.train.noise: gaussian
+ - override /dataset/degradation@dataset.test.degradation: gaussian_downsampling
+ - override /dataset/noise@dataset.test.noise: gaussian
+
+models:
+  pretrained_flow:
+    path: "${paths.out_path}/step1_sr_lr/checkpoints/training-state-262144.pt"
+  kernel:
+    type: direct
+    factor: 2
+    kernel_size: 15
+    kernel_ch: 1
+    padding: circular
+    kernel_norm: softplus_sum_to_one
+    initialization: random
+    noise_type: gaussian
+    auto_center: true
+    auto_center_window: 10
+
+dataset:
+  device: cuda
+  train:
+    degradation:
+      padding: circular
+    noise:
+      std: 0.01
+    patch_size: 64
+    num_patches_per_image: 512
+    patch_cache_size: 512
+    cuda: False
+    space_conditioning: False
+
+    noisy_path: ${paths.data}/div2krk/lr_x2/
+    clean_path: ${paths.data}/div2krk/lr_x2/
+  test:
+    degradation:
+      padding: circular
+    noise:
+      std: 0.01
+    patch_size: 64
+    num_patches_per_image: 512
+    patch_cache_size: 512
+    cuda: False
+    space_conditioning: False
+    path: ${paths.data}/div2krk/lr_x2/
+
+optim:
+  aux:
+    lr: 0.0001
+  kernel:
+    lr: 0.003
+
+loss:
+  name: diy
+  n_inner_steps: 1
+  n_accum_steps: 1
+
+training:
+  tensorboard: true
+  batch_size: 64
+  max_val_batches: 1
+  num_workers: 0
+  max_steps: ${parse_nimg:"256Ki"}
+  save_every_steps: ${parse_nimg:"256Ki"}
+  plot_every_steps: ${parse_nimg:"16Ki"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+
+exp_name: sr_exp2_sr_lr1e-4x4_bs64_creg0.1_sreg0.1_sto0.1_init0.1

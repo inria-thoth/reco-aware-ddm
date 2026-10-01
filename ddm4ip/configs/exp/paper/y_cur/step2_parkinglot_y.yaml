@@ -1,0 +1,76 @@
+# @package _global_
+
+defaults:
+ - /models@models.pretrained_flow: xxs_flow_64
+ - /models@models.kernel: direct_centerpixel
+ - /loss@loss.aux: flow_matching
+ - override /training: default
+ - override /generation: flow
+
+models:
+  pretrained_flow:
+    path: "${paths.out_path}/step1_parkinglot_noisy/checkpoints/training-state-16777216.pt"
+  kernel:
+    kernel_size: 13
+    kernel_ch: 3
+    num_psfs: [12, 16]
+    initialization: "random"
+    padding: circular
+
+dataset:
+  cuda: True
+  train:
+    clean_path: ${paths.data}/parking_lot/parkinglot_5_6_center768.zip
+    noisy_path: ${paths.data}/parking_lot/parkinglot_16.zip
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 256
+    cuda: True
+    x_flip: False
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+  test:
+    path: ${paths.data}/parking_lot/parkinglot_5_6_center768.zip
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 256
+    cuda: True
+    x_flip: False
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+    noise:
+      kind: none
+    degradation:
+      kind: none
+
+optim:
+  aux:
+    lr: 0.0001
+  kernel:
+    lr: 0.0001
+
+loss:
+  aux:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  n_accum_steps: 1
+  n_inner_steps: 1
+  name: diy
+
+training:
+  tensorboard: true
+  batch_size: 128
+  num_workers: 6
+  max_val_batches: 1
+  max_steps: ${parse_nimg:"8Mi"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+  plot_every_steps: ${parse_nimg:"128Ki"}
+  save_every_steps: ${parse_nimg:"1Mi"}
+
+exp_name: step2_di_y_parkinglot_v1

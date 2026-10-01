@@ -1,0 +1,115 @@
+# @package _global_
+
+defaults:
+ - /models@models.pretrained_flow_x: xxs_flow_64
+ - /models@models.pretrained_flow_y: xxs_flow_64
+ - /models@models.kernel: direct_centerpixel
+ - /dataset@dataset.train: ffhq_train
+ - /dataset@dataset.test: ffhq_test
+ - /loss@loss.aux_x: flow_matching
+ - /loss@loss.aux_y: flow_matching
+ - override /training: default
+ - override /generation: flow
+ - override /dataset/degradation@dataset.train.degradation: per_pixel_blur
+ - override /dataset/noise@dataset.train.noise: gaussian
+ - override /dataset/degradation@dataset.test.degradation: per_pixel_blur
+ - override /dataset/noise@dataset.test.noise: gaussian
+
+models:
+  pretrained_flow_x:
+    path: ${paths.out_path}/step1_div2k_nu_clean_patch/checkpoints/training-state-8388608.pt
+  pretrained_flow_y:
+    path: ${paths.out_path}/step1_div2k_nu_y_patch/checkpoints/training-state-8388608.pt
+  kernel:
+    type: direct_center
+    factor: 1
+    kernel_size: 27
+    kernel_ch: 3
+    num_psfs: [8, 8]
+    padding: replicate
+    initialization: random
+    kernel_norm: softplus_sum_to_one
+    noise_type: gaussian
+
+dataset:
+  device: cuda
+  train:
+    clean_path: ${paths.data}/dd_dp_dataset_png/train_c/target
+    noisy_path: ${paths.data}/div2k/div2k_train_full.zip
+    degradation:
+      kind: per_pixel_blur
+      psf_path: ${paths.data}/psfs/8x8_realpsf_rgb_27.pt
+      kernel_size: 27
+      padding: replicate
+    noise:
+      kind: gaussian
+      std: 0.01
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 512
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+  test:
+    path: ${paths.data}/div2k/div2k_val_full.zip
+    degradation:
+      kind: per_pixel_blur
+      psf_path: ${paths.data}/psfs/8x8_realpsf_rgb_27.pt
+      kernel_size: 27
+      padding: replicate
+    noise:
+      kind: gaussian
+      std: 0.01
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 512
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+
+optim:
+  aux_x:
+    lr: 0.0001
+  aux_y:
+    lr: 0.0001
+  kernel:
+    lr: 0.003
+
+loss:
+  aux_x:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  aux_y:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  name: di_x_y
+  n_accum_steps: 1
+  n_inner_steps: 1
+  lambda_dix: 1.0
+  lambda_dix_warmup_steps: ${parse_nimg:"1Mi"}
+  restorer:
+    type: dpir
+    sigma: 0.01
+    grad_iters: 3
+
+training:
+  tensorboard: true
+  batch_size: 32
+  num_workers: 2
+  max_val_batches: 1
+  max_steps: ${parse_nimg:"15Mi"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+  plot_every_steps: ${parse_nimg:"32Ki"}
+  save_every_steps: ${parse_nimg:"1Mi"}
+  save_first_step: false
+  seed: 41
+
+exp_name: diy_dix_pnp_step2_div2k_nu_v1

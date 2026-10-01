@@ -1,0 +1,5 @@
+kind: aniso_gaussian_blur
+kernel_std_x: 3.0
+kernel_std_y: 1.0
+kernel_angle: 45.0
+padding: replicate

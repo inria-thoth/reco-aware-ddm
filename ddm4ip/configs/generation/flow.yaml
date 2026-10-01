@@ -1,0 +1,2 @@
+sampler_type: flowmatching
+num_steps: 32

@@ -1,0 +1,56 @@
+# @package _global_
+
+defaults:
+ - /dataset@dataset.test: ddpd_fullimages
+ - /models@models.kernel: direct_centerpixel
+ - override /dataset/degradation@dataset.test.degradation: per_pixel_blur
+ - override /dataset/noise@dataset.test.noise: gaussian
+ - override /training: validation
+ - override /loss: deepinv
+
+dataset:
+  device: cuda
+  test:
+    degradation:
+      kind: per_pixel_blur
+      psf_path: ${paths.data}/psfs/8x8_realpsf_rgb_27.pt
+      kernel_size: 27
+      padding: replicate
+    noise:
+      kind: gaussian
+      std: 0.01
+
+loss:
+  crop_filters: 1
+  patch_size: 128
+  padding: 32
+  patch_batch_size: 512
+
+models:
+  deepinv_solver:
+    method: dpir
+    prior: DRUNet
+  kernel:
+    path: ${paths.out_path}/step2_ffhq256_nu_ns0.02_diy_new_v5/checkpoints/training-state-7340032.pt
+    factor: 1
+    kernel_size: 27
+    kernel_ch: 3
+    num_psfs: [8, 8]
+    initialization: "random"
+    type: direct_center
+    kernel_norm: softplus_sum_to_one
+
+    auto_center: true
+    auto_center_window: 10
+    auto_center_anchor_channel: 1
+
+training:
+  tensorboard: true
+  batch_size: 1
+  report_every_steps: 8
+  plot_every_steps: 8
+  num_workers: 4
+  max_val_batches: 1
+  save_eval_to_file: True
+
+exp_name: step3_ffhq256_nu_ns0.02_diy_new_v2

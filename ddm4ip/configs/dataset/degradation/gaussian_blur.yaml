@@ -1,0 +1,4 @@
+kind: gaussian_blur
+kernel_std: 3.0
+kernel_angle: 0.0
+padding: replicate

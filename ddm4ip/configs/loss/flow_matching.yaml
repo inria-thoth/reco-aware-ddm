@@ -1,0 +1,4 @@
+name: "flow_matching"
+n_accum_steps: 1
+diffusion:
+  type: flowmatching

@@ -1,0 +1,5 @@
+kind: motion_blur
+kernel_size: 33
+intensity: 0.95
+rnd_seed: 13
+padding: circular

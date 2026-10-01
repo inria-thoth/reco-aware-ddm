@@ -1,0 +1,173 @@
+from typing import Any, Iterable, Mapping
+
+import deepinv
+import torch
+import torchvision.transforms.v2.functional as TF
+
+from ddm4ip.data.base import Batch
+from ddm4ip.losses.base import AbstractLoss
+from ddm4ip.networks.blur_nets import AbstractBlurNet
+from ddm4ip.utils.metrics import LPIPS, calc_psnr, calc_psnr_matlab, calc_ssim
+from ddm4ip.utils.torch_utils import img2patches, patches2img
+
+
+class DeepInvLoss(AbstractLoss):
+    def __init__(self,
+                 config: Mapping[str, Any],
+                 deepinv_model: torch.nn.Module,
+                 kernel_nn: AbstractBlurNet | deepinv.physics.LinearPhysics):
+        super().__init__(has_val_loss=True)
+        self.deepinv_model = deepinv_model
+        self.kernel_nn = kernel_nn
+        self.lpips = LPIPS(net_type="alex").cuda()
+        loss_cfg = config["loss"]
+        self.crop_filters: int = loss_cfg.get("crop_filters", 0)
+        self.patch_size: int | None = loss_cfg.get("patch_size", None)
+        self.padding: int = loss_cfg.get("padding", 0)
+        self.patch_batch_size: int = loss_cfg.get("patch_batch_size", 1)
+        # Border (in pixels) shaved from each side before scoring; the
+        # super-resolution convention is the scale factor.
+        self.eval_crop_border: int = int(loss_cfg.get("eval_crop_border", 0))
+
+    def run_model(self, batch: Batch) -> tuple[torch.Tensor, torch.Tensor | None]:
+        assert batch.corrupt is not None
+
+        data_resolution = batch.corrupt.shape[-2], batch.corrupt.shape[-1]
+        if self.patch_size is not None and (self.patch_size != data_resolution[0] or self.patch_size != data_resolution[1]):
+            # Input is in full resolution,
+            # we need to convert batch data to patches
+            if batch.corrupt.shape[0] > 1:
+                raise ValueError(
+                    f"DeepInv loss does not support batch-sizes > 1 "
+                    f"when full-images are provided. Found batch size of {batch.corrupt.shape[0]}"
+                )
+            image_c, image_h, image_w = batch.corrupt.shape[-3:]
+            if batch.corrupt_conditioning is not None:
+                img_and_cond = torch.cat([batch.corrupt, batch.corrupt_conditioning], dim=-3)
+            else:
+                img_and_cond = batch.corrupt
+            patches = img2patches(img_and_cond, patch_size=self.patch_size + self.padding, stride=self.patch_size)
+            restored_patches, corruption_filters = self.run_on_iterable(patches, image_c, **batch.meta, **batch.noise_params)
+            restored_patches = [p.squeeze(0) for p in restored_patches]
+            patch_size_mult = restored_patches[0].shape[-1] / patches[0].shape[-1]
+            def _crop(x):
+                return TF.center_crop(x, output_size=[x.shape[-2] - int(self.padding * patch_size_mult), x.shape[-1] - int(self.padding * patch_size_mult)])
+            restored_image = patches2img(
+                restored_patches,
+                stride=int(self.patch_size * patch_size_mult),
+                imgh=int(image_h * patch_size_mult),
+                imgw=int(image_w * patch_size_mult),
+                func=_crop
+            )
+            restored_image = restored_image.unsqueeze(0)  # add back the batch dimension
+        else:
+            restored_image, corruption_filters = self.run_on_data(
+                y=batch.corrupt.cuda(),
+                x=batch.clean.cuda() if batch.clean is not None else None,
+                conditioning=batch.corrupt_conditioning.cuda() if batch.corrupt_conditioning is not None else None,
+                **batch.meta, **batch.noise_params
+            )
+            restored_image = restored_image.cpu()
+        return restored_image, corruption_filters
+
+    def run_on_iterable(self, y_and_cond: Iterable[torch.Tensor], y_channels: int, **kwargs) -> tuple[list[torch.Tensor], torch.Tensor | None]:
+        out_patches: list[torch.Tensor] = []
+        out_filters = []
+        sub_batch = []
+        for patch in y_and_cond:
+            sub_batch.append((patch[..., :y_channels, :, :], patch[..., y_channels:, :, :]))
+            if len(sub_batch) >= self.patch_batch_size:
+                y_stack = torch.cat([b[0] for b in sub_batch], dim=0).cuda()
+                cond_stack = torch.cat([b[1] for b in sub_batch], dim=0).cuda()
+                if cond_stack.numel() == 0:
+                    cond_stack = None
+                restored, filters = self.run_on_data(y_stack, x=None, conditioning=cond_stack, **kwargs)
+                out_patches.extend(restored.cpu().split(1, dim=0))
+                if filters is not None:
+                    out_filters.append(filters)
+                sub_batch = []
+        if len(sub_batch) > 0:
+            y_stack = torch.cat([b[0] for b in sub_batch], dim=0).cuda()
+            cond_stack = torch.cat([b[1] for b in sub_batch], dim=0).cuda()
+            if cond_stack.numel() == 0:
+                cond_stack = None
+            restored, filters = self.run_on_data(y_stack, x=None, conditioning=cond_stack, **kwargs)
+            out_patches.extend(restored.cpu().split(1, dim=0))
+            if filters is not None:
+                out_filters.append(filters)
+
+        if len(out_filters) > 0:
+            out_filters = torch.cat(out_filters, 0)
+        else:
+            out_filters = None
+        return out_patches, out_filters
+
+    def run_on_data(self, y: torch.Tensor, x: torch.Tensor | None, **kwargs) -> tuple[torch.Tensor, torch.Tensor | None]:
+        if isinstance(self.kernel_nn, deepinv.physics.LinearPhysics):
+            physics = self.kernel_nn
+        else:
+            physics = self.kernel_nn.get_physics(**kwargs)
+        x_net = self.deepinv_model(
+            y, physics, x_gt=x, compute_metrics=False
+        ).clamp(0, 1)
+        kernels = None
+        if hasattr(physics, "filter"):
+            kernels = physics.filter.detach().cpu() # pyright: ignore[reportCallIssue]
+        elif hasattr(physics, "filters"):
+            kernels = physics.filters.detach().cpu() # pyright: ignore[reportCallIssue]
+        return x_net, kernels
+
+    def compute_img_metrics(self, x_recon: torch.Tensor, x_gt: torch.Tensor):
+        # PSNR on RGB and on the luminance channel (MATLAB rgb2ycbcr, the
+        # super-resolution convention), SSIM and LPIPS.
+        rc, gt = x_recon, x_gt
+        cb = self.eval_crop_border
+        if cb > 0:
+            rc = TF.center_crop(rc, [rc.shape[-2] - 2 * cb, rc.shape[-1] - 2 * cb])
+            gt = TF.center_crop(gt, [gt.shape[-2] - 2 * cb, gt.shape[-1] - 2 * cb])
+        # calc_psnr_matlab handles one image at a time.
+        if rc.ndim == 4 and rc.shape[0] > 1:
+            vals = [calc_psnr_matlab(gt[i:i + 1], rc[i:i + 1]) for i in range(rc.shape[0])]
+            psnr_matlab = sum(vals) / len(vals)
+        else:
+            psnr_matlab = calc_psnr_matlab(gt, rc)
+        metrics = {
+            "lpips": self.lpips(gt.cuda(), rc.cuda()),
+            "psnr": calc_psnr(gt, rc),
+            "ssim": calc_ssim(gt, rc),
+            "psnr_matlab": psnr_matlab,
+        }
+        return metrics
+
+    def __call__(self, trainer, batch: Batch):
+        pred, _ = self.run_model(batch)
+        loss_info = {}
+        if batch.clean is not None:
+            metrics = self.compute_img_metrics(pred, batch.clean)
+            loss_info.update({f"loss/{k}": v for k, v in metrics.items()})
+        return loss_info
+
+    @torch.no_grad()
+    def val_loss(self, trainer, batch: Batch):
+        loss_dict = self(trainer, batch)
+        return {
+            k.replace("loss", "val_loss"): v for k, v in loss_dict.items()
+        }
+
+    @torch.no_grad()
+    def val_loss_with_output(self, trainer, batch: Batch) -> tuple[dict[str, float], torch.Tensor, torch.Tensor | None]:
+        pred, filters = self.run_model(batch)
+        loss_info = {}
+        if batch.clean is not None:
+            metrics = self.compute_img_metrics(pred.to("cuda"), batch.clean.to("cuda"))
+            loss_info.update({f"val_loss/{k}": v for k, v in metrics.items()})
+        return loss_info, pred, filters
+
+    def is_full_step_complete(self) -> bool:
+        return True
+
+    def state_dict(self):
+        return {}
+
+    def load_state_dict(self, state_dict):
+        pass

@@ -1,0 +1,84 @@
+# @package _global_
+
+defaults:
+ - /models@models.pretrained_flow: xxxs_flow_256
+ - /models@models.kernel: direct_kernel
+ - /dataset@dataset.train: ffhq_train
+ - /dataset@dataset.test: ffhq_test
+ - /loss@loss.aux: flow_matching
+ - override /training: default
+ - override /generation: flow
+ - override /dataset/degradation@dataset.train.degradation: motion_blur_complex
+ - override /dataset/noise@dataset.train.noise: gaussian
+ - override /dataset/degradation@dataset.test.degradation: motion_blur_complex
+ - override /dataset/noise@dataset.test.noise: gaussian
+
+models:
+  pretrained_flow:
+    path: ${paths.out_path}/step1_ffhq256_mbcomplex_patch/checkpoints/training-state-8388608.pt
+  kernel:
+    factor: 1
+    kernel_size: 33
+    noise_type: gaussian
+    padding: circular
+    type: direct
+
+dataset:
+  device: cuda
+  train:
+    clean_path: ${paths.data}/ffhq/ffhq_256_tr_1k_clean.zip
+    noisy_path: ${paths.data}/ffhq/ffhq_256_tr_1k_noisy.zip
+    noise:
+        kind: gaussian
+        std: 0.02
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 2048
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+  test:
+    path: ${paths.data}/ffhq/ffhq_256_val_clean.zip
+    noise:
+        kind: gaussian
+        std: 0.02
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 2048
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+
+optim:
+  aux:
+    lr: 0.0001
+  kernel:
+    lr: 0.001
+
+loss:
+  aux:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  n_accum_steps: 1
+  n_inner_steps: 1
+  name: diy
+
+training:
+  tensorboard: true
+  batch_size: 256
+  num_workers: 2
+  max_val_batches: 1
+  max_steps: ${parse_nimg:"15Mi"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+  plot_every_steps: ${parse_nimg:"32Ki"}
+  save_every_steps: ${parse_nimg:"1Mi"}
+  save_first_step: false
+  seed: 41
+
+exp_name: step2_ffhq256_mbcomplex_ns0.02_diy_v1

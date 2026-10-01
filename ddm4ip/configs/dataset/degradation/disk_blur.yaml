@@ -1,0 +1,5 @@
+kind: disk_blur
+kernel_size: 33
+radius: 5.0
+edge: 0.7
+padding: replicate

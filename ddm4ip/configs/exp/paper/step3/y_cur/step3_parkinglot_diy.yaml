@@ -1,0 +1,41 @@
+# @package _global_
+
+defaults:
+ - /dataset@dataset.test: plot16_fullimgs
+ - /models@models.kernel: direct_centerpixel
+ - override /training: validation
+ - override /loss: deepinv
+
+loss:
+  crop_filters: 1
+  patch_size: 128
+  padding: 32
+  patch_batch_size: 512
+
+models:
+  deepinv_solver:
+    method: dpir
+    prior: DRUNet
+
+    sat_mask: true
+    sat_hi: 0.99
+    sat_weight: 0.05
+    sat_target: 1.0
+
+  kernel:
+    path: ${paths.out_path}/step2_di_y_parkinglot_v1/checkpoints/training-state-7340032.pt
+    kernel_size: 13
+    kernel_ch: 3
+    num_psfs: [12, 16]
+    initialization: "random"
+    padding: circular
+
+training:
+  tensorboard: true
+  batch_size: 1
+  report_every_steps: 8
+  plot_every_steps: 8
+  save_eval_to_file: True
+  save_pred_only: True
+
+exp_name: step3_diy_new_parkinglot_v1

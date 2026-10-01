@@ -1,0 +1,5 @@
+type: "direct"
+noise_type: "gaussian"
+kernel_size: 13
+padding: "replicate"
+factor: 1

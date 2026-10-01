@@ -1,0 +1,6 @@
+defaults:
+ - degradation: gaussian_blur
+ - noise: gaussian
+
+clean_path: ${paths.data}/ffhq/ffhq_64_tr_1k.zip
+noisy_path: ${paths.data}/ffhq/ffhq_64_tr_100.zip

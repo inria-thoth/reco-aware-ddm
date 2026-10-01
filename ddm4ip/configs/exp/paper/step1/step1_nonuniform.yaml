@@ -1,0 +1,69 @@
+# @package _global_
+
+defaults:
+ - /models@models.flow: xxs_flow_64
+ - override /training: default
+ - override /loss: flow_matching
+ - override /generation: flow
+
+dataset:
+  cuda: True
+  train:
+    clean_path: ${paths.data}/dd_dp_dataset_png/train_c/target
+    noisy_path: ${paths.data}/div2k/div2k_train_full.zip
+    degradation:
+      kind: per_patch_blur
+      psf_path: "${paths.data}/psfs/8x8_realpsf_rgb_27.pt"
+      kernel_size: 27
+      padding: replicate
+    noise:
+      kind: gaussian
+      std: 0.01
+    patch_size: 128
+    num_patches_per_image: 256
+    patch_cache_size: 2048
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+  test:
+    path: ${paths.data}/div2k/div2k_val_full.zip
+    degradation:
+      kind: per_patch_blur
+      psf_path: "${paths.data}/psfs/8x8_realpsf_rgb_27.pt"
+      kernel_size: 27
+      padding: replicate
+    noise:
+      kind: gaussian
+      std: 0.01
+    patch_size: 128
+    num_patches_per_image: 256
+    patch_cache_size: 2048
+    x_flip: True
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+
+optim:
+  lr: 0.01
+
+loss:
+  clean_images: True
+  n_accum_steps: 2
+
+ema:
+  stds: [0.05]
+
+training:
+  tensorboard: true
+  batch_size: 128
+  max_val_batches: 1
+  num_workers: 2
+  max_steps: ${parse_nimg:"33Mi"}
+  save_every_steps: ${parse_nimg:"8Mi"}
+  plot_every_steps: ${parse_nimg:"512Ki"}
+  report_every_steps: ${parse_nimg:"64Ki"}
+
+exp_name: step1_ffhq256_nu_clean_128_patch_xxs

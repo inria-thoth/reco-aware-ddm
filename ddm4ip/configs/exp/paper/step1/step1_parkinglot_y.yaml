@@ -1,0 +1,59 @@
+# @package _global_
+
+defaults:
+ - /models@models.flow: xxs_flow_64
+ - override /training: default
+ - override /loss: flow_matching
+ - override /generation: flow
+
+optim:
+  lr: 0.01
+
+dataset:
+  cuda: True
+  train:
+    clean_path: ${paths.data}/parking_lot/parkinglot_5_6_center768.zip
+    noisy_path: ${paths.data}/parking_lot/parkinglot_16.zip
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 256
+    cuda: True
+    x_flip: False
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+  test:
+    path: ${paths.data}/parking_lot/parkinglot_5_6_center768.zip
+    patch_size: 64
+    num_patches_per_image: 256
+    patch_cache_size: 256
+    cuda: True
+    x_flip: False
+    space_conditioning: True
+    full_test: True
+    need_clean: True
+    need_noisy: True
+    noise:
+      kind: none
+    degradation:
+      kind: none
+
+loss:
+  clean_images: False
+  n_accum_steps: 1
+
+ema:
+  stds: [0.05]
+
+training:
+  tensorboard: true
+  batch_size: 1024
+  max_val_batches: 1
+  num_workers: 6
+  max_steps: ${parse_nimg:"17Mi"}
+  save_every_steps: ${parse_nimg:"8Mi"}
+  plot_every_steps: ${parse_nimg:"512Ki"}
+  report_every_steps: ${parse_nimg:"64Ki"}
+
+exp_name: step1_parkinglot_noisy

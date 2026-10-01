@@ -1,0 +1,110 @@
+# @package _global_
+
+defaults:
+ - /models@models.pretrained_flow_x: xxxs_flow_32
+ - /models@models.pretrained_flow_y: xxxs_flow_32
+ - /models@models.kernel: direct_kernel
+ - /loss@loss.aux_x: flow_matching
+ - /loss@loss.aux_y: flow_matching
+ - /dataset@dataset.train: div2krk
+ - /dataset@dataset.test: div2krk
+ - override /training: default
+ - override /generation: flow
+ - override /dataset/degradation@dataset.train.degradation: file_downsampling
+ - override /dataset/noise@dataset.train.noise: gaussian
+ - override /dataset/degradation@dataset.test.degradation: file_downsampling
+ - override /dataset/noise@dataset.test.noise: gaussian
+
+models:
+  pretrained_flow_x:
+    path: ${paths.out_path}/step1_sr_x_img1/checkpoints/training-state-1048576.pt
+  pretrained_flow_y:
+    path: ${paths.out_path}/step1_sr_y_img1/checkpoints/training-state-1048576.pt
+  kernel:
+    type: direct
+    factor: 2
+    kernel_size: 15
+    kernel_ch: 1
+    padding: circular
+    kernel_norm: softplus_sum_to_one
+    initialization: random
+    noise_type: gaussian
+
+    auto_center: true
+    auto_center_window: 10
+
+dataset:
+  device: cuda
+  train:
+    clean_path: ${paths.data}/div2krk/lr_x2/
+    noisy_path: ${paths.data}/div2krk/lr_x2/
+
+    degradation:
+      kind: file_downsampling
+      factor: 2
+      padding: circular
+      kernel_size: 15
+    noise:
+      std: 0
+    patch_size: 64
+    num_patches_per_image: 512
+    patch_cache_size: 512
+    cuda: False
+    space_conditioning: False
+  test:
+    path: ${paths.data}/div2krk/lr_x2/
+    degradation:
+      kind: file_downsampling
+      factor: 2
+      padding: circular
+      kernel_size: 15
+    noise:
+      std: 0
+    patch_size: 64
+    num_patches_per_image: 512
+    patch_cache_size: 512
+    cuda: False
+    space_conditioning: False
+
+optim:
+  aux_x:
+    lr: 0.0001
+  aux_y:
+    lr: 0.0001
+  kernel:
+    lr: 0.003
+
+loss:
+  aux_x:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  aux_y:
+    diffusion:
+      type: flowmatching
+    n_accum_steps: 1
+    name: flow_matching
+  name: di_x_y
+  n_accum_steps: 1
+  n_inner_steps: 1
+  lambda_dix: 1.0
+  lambda_dix_warmup_steps: ${parse_nimg:"256Ki"}
+  restorer:
+    type: dpir
+    sigma: 0.01
+    grad_iters: 1
+
+training:
+  tensorboard: true
+  batch_size: 32
+  num_workers: 0
+  max_val_batches: 1
+  max_steps: ${parse_nimg:"512Ki"}
+  report_every_steps: ${parse_nimg:"16Ki"}
+  plot_every_steps: ${parse_nimg:"16Ki"}
+  save_every_steps: ${parse_nimg:"256Ki"}
+  save_first_step: false
+  seed: 41
+
+exp_name: diy_dix_pnp_step2_sr_img1

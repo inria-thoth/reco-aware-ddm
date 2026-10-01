@@ -1,0 +1,9 @@
+type: "direct_center"
+noise_type: "gaussian"
+psf_path: null
+kernel_size: 9
+kernel_ch: null
+num_psfs: null
+padding: "replicate"
+output_noise_sigma: null
+initialization: "random"

@@ -1,0 +1,45 @@
+# @package _global_
+
+defaults:
+ - /dataset@dataset.test: ffhq
+ - override /dataset/degradation@dataset.test.degradation: gaussian_blur
+ - override /dataset/noise@dataset.test.noise: gaussian
+ - override /training: validation
+ - override /loss: deepinv
+
+dataset:
+  device: cuda
+  test:
+    path: ${paths.data}/ffhq/ffhq_256_val.zip
+    degradation:
+      kernel_std: 1.0
+    noise:
+        kind: gaussian
+        std: 0.02
+
+loss:
+  crop_filters: 1
+
+models:
+  deepinv_solver:
+    method: dpir
+    prior: DiffUNet
+    large_model: False
+  kernel:
+    path: ${paths.out_path}/step2_ffhq256_gb_1_ns0.02_diy_new_v1/checkpoints/training-state-4194304.pt
+    factor: 1
+    kernel_size: 33
+    noise_type: gaussian
+    padding: replicate
+    type: direct
+
+training:
+  tensorboard: true
+  batch_size: 128
+  report_every_steps: 128
+  plot_every_steps: 128
+  num_workers: 4
+  max_val_batches: 1
+  save_eval_to_file: True
+
+exp_name: step3_ffhq256_gb_1_ns0.02_diy_new_v1
