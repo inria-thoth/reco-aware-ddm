@@ -15,9 +15,7 @@ reconstruction term.
 
 ## Authors
 
-the public implementation of the paper Unsupervised Imaging Inverse Problems
-with Diffusion Distribution Matching (Meanti, Ryckeboer, Arbel and Mairal,
-2025). The first version of this package was written by Thomas Ryckeboer and
+The first version of this package was written by Thomas Ryckeboer and
 Giacomo Meanti while they were at Inria. Julien Mairal then took over the
 project and developed it, using Claude Code as a coding assistant.
 
